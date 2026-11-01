@@ -10,6 +10,7 @@ const LS_PLAYERS = 'xamloc_players';
 const LS_SESSIONS = 'xamloc_sessions';
 const LS_PRESETS = 'xamloc_presets';
 const LS_NOTES = 'xamloc_notes'; // per-van notes: { [vanIdx]: string }
+const LS_PLAYER_BANKS = 'xamloc_player_banks'; // { [playerName]: { bank, account, accountName } }
 
 // ── Badge maps ─────────────────────────────────────────────────
 const TMAP = { W: 'bx', X: 'bx', Q: 'bq', Qbat: 'bc', Qsafe: 'bchan', C: 'bc', Chan: 'bchan', Xchan: 'bc', DL: 'bdl', DLnhan: 'bdlnhan' };
@@ -23,11 +24,13 @@ let pnames = ['Người 1', 'Người 2', 'Người 3', 'Người 4'];
 let mode = 'normal';
 let selXam = -1, selChan = -1, selTqChain = [], selChay = [], selWin = -1, selDenLang = -1;
 let selAbsent = []; // cột (người) vắng ở ván đang nhập — không tính điểm ván đó
+let currentHistoryFilter = 'all'; // 'all' | 'xam' | 'tq' | 'chay'
 
 // ── Sessions & extras ─────────────────────────────────────────
 let sessions = []; // [{id, date, label, history, names, numP, rules, tot}]
 let vanNotes = {}; // { [vanIdx]: string }
 let playerPresets = []; // string[] — tên hay dùng
+let playerBanks = {}; // { [playerName]: { bank, account, accountName } }
 
 // ── Timer state ────────────────────────────────────────────────
 let timerRunning = false;
@@ -82,8 +85,12 @@ function setInputMode(m) {
 // ══════════════════════════════════════════════════════════════
 function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀️' : '🌙';
-    document.getElementById('theme-toggle-btn').title = theme === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối';
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.title = theme === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối';
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.content = theme === 'dark' ? '#050716' : '#e9efff';
 }
 
 function toggleTheme() {
@@ -305,10 +312,12 @@ function save() {
         localStorage.setItem(LS_PLAYERS, JSON.stringify({ numP, pnames }));
         localStorage.setItem(LS_NOTES, JSON.stringify(vanNotes));
         localStorage.setItem(LS_PRESETS, JSON.stringify(playerPresets));
+        localStorage.setItem(LS_PLAYER_BANKS, JSON.stringify(playerBanks));
     } catch (e) {
         console.warn('localStorage full', e);
         showToast('⚠️ Bộ nhớ máy đầy — dữ liệu mới có thể chưa lưu được! Vào tab 💾 Dữ liệu để dọn bớt.', 4000);
     }
+    if (window.broadcastLiveUpdate) broadcastLiveUpdate();
 }
 
 function load() {
@@ -341,6 +350,8 @@ function load() {
         if (nt) vanNotes = JSON.parse(nt);
         const pr = localStorage.getItem(LS_PRESETS);
         if (pr) playerPresets = JSON.parse(pr);
+        const pb = localStorage.getItem(LS_PLAYER_BANKS);
+        if (pb) playerBanks = JSON.parse(pb);
     } catch (e) { console.warn('load error', e); }
 }
 
@@ -1056,6 +1067,40 @@ function fmtDelta(delta) {
     return (delta > 0 ? '+' : '') + delta + 'đ';
 }
 
+function isVanXam(v) {
+    if (!v) return false;
+    if (v.mode === 'xam') return true;
+    if (v.tags && v.tags.some(pTags => pTags.some(t => {
+        const tag = typeof t === 'string' ? t : t.tag;
+        return tag === 'X' || tag === 'Chan' || tag === 'Xchan';
+    }))) return true;
+    return false;
+}
+
+function isVanTQ(v) {
+    if (!v) return false;
+    if (v.tags && v.tags.some(pTags => pTags.some(t => {
+        const tag = typeof t === 'string' ? t : t.tag;
+        return tag === 'Q' || tag === 'Qbat' || tag === 'Qsafe';
+    }))) return true;
+    return false;
+}
+
+function isVanChay(v) {
+    if (!v) return false;
+    if (v.tags && v.tags.some(pTags => pTags.some(t => {
+        const tag = typeof t === 'string' ? t : t.tag;
+        return tag === 'C';
+    }))) return true;
+    return false;
+}
+
+function setHistoryFilter(f) {
+    SFX.play('click');
+    currentHistoryFilter = f;
+    renderBoard();
+}
+
 function renderBoard() {
     if (!history.length) return;
     const names = history[history.length - 1].names;
@@ -1078,6 +1123,32 @@ function renderBoard() {
         sb.innerHTML = sbHtml;
     }
 
+    // History Filter Bar
+    const fb = document.getElementById('history-filter-bar');
+    if (fb) {
+        let countXam = 0, countTQ = 0, countChay = 0;
+        history.forEach(v => {
+            if (isVanXam(v)) countXam++;
+            if (isVanTQ(v)) countTQ++;
+            if (isVanChay(v)) countChay++;
+        });
+
+        fb.innerHTML = `
+            <button class="hfilter-btn ${currentHistoryFilter === 'all' ? 'active' : ''}" onclick="setHistoryFilter('all')">
+                Tất cả <span class="hfilter-badge">${history.length}</span>
+            </button>
+            <button class="hfilter-btn ${currentHistoryFilter === 'xam' ? 'active' : ''}" onclick="setHistoryFilter('xam')">
+                🎯 Có Sâm <span class="hfilter-badge">${countXam}</span>
+            </button>
+            <button class="hfilter-btn ${currentHistoryFilter === 'tq' ? 'active' : ''}" onclick="setHistoryFilter('tq')">
+                💣 Có Tứ quý <span class="hfilter-badge">${countTQ}</span>
+            </button>
+            <button class="hfilter-btn ${currentHistoryFilter === 'chay' ? 'active' : ''}" onclick="setHistoryFilter('chay')">
+                🔥 Cháy bài <span class="hfilter-badge">${countChay}</span>
+            </button>
+        `;
+    }
+
     // History table
     const ht = document.getElementById('hist-table');
     if (ht) {
@@ -1086,7 +1157,20 @@ function renderBoard() {
         th += `<th>📝</th><th></th></tr>`;
 
         let rows = '';
-        history.forEach((v, vi) => {
+        let matchedCount = 0;
+        const filterTot = new Array(numP).fill(0);
+
+        for (let vi = history.length - 1; vi >= 0; vi--) {
+            const v = history[vi];
+
+            // Filter check
+            if (currentHistoryFilter === 'xam' && !isVanXam(v)) continue;
+            if (currentHistoryFilter === 'tq' && !isVanTQ(v)) continue;
+            if (currentHistoryFilter === 'chay' && !isVanChay(v)) continue;
+
+            matchedCount++;
+            v.scores.forEach((s, i) => filterTot[i] += s);
+
             const isLast = vi === history.length - 1;
             let tr = `<tr${isLast ? ' class="new-row"' : ''}>
           <td style="color:var(--muted);font-weight:700;font-size:11px;">${v.mode === 'xam' ? '🎯 ' : ''}V${vi + 1}</td>
@@ -1132,14 +1216,21 @@ function renderBoard() {
             </td>`;
             tr += `<td><button class="del-btn" onclick="delVan(${vi})">🗑</button></td></tr>`;
             rows += tr;
-        });
-
-        let totRow = `<tr class="tot-row"><td>Tổng</td><td></td>`;
-        for (let i = 0; i < numP; i++) {
-            const t = roundScore(tot[i]);
-            totRow += `<td class="${t >= 0 ? 'pos' : 'neg'}">${t > 0 ? '+' : ''}${t}</td>`;
         }
-        totRow += `<td></td><td></td></tr>`;
+
+        let totRow = '';
+        if (matchedCount === 0) {
+            rows = `<tr><td colspan="${numP + 4}" style="text-align:center;padding:24px;color:var(--muted);font-style:italic;">Không có ván nào khớp với bộ lọc này</td></tr>`;
+        } else {
+            const displayTotals = currentHistoryFilter === 'all' ? tot : filterTot;
+            const labelTot = currentHistoryFilter === 'all' ? 'Tổng' : `Tổng (${matchedCount} ván)`;
+            totRow = `<tr class="tot-row"><td>${labelTot}</td><td></td>`;
+            for (let i = 0; i < numP; i++) {
+                const t = roundScore(displayTotals[i]);
+                totRow += `<td class="${t >= 0 ? 'pos' : 'neg'}">${t > 0 ? '+' : ''}${t}</td>`;
+            }
+            totRow += `<td></td><td></td></tr>`;
+        }
         ht.innerHTML = th + rows + totRow;
     }
 
@@ -1176,6 +1267,7 @@ function resetGame() {
                 saveSession();
             }
             currentSessionId = null;
+            currentHistoryFilter = 'all';
             history = []; undoSnapshot = null; vanNotes = {}; save();
             if (window.fbBridge && fbBridge.resetStat) fbBridge.resetStat();   // buổi mới → bộ đếm ván extension về 0
             resetTimer();
@@ -1514,11 +1606,16 @@ function renderSettlement(names, tot) {
     txns.forEach(t => {
         const amt = roundScore(t.amount);
         const display = Number.isInteger(amt) ? amt : amt.toFixed(1).replace(/\.0$/, '');
-        html += `<div class="settlement-row">
+        const safeFrom = names[t.from].replace(/'/g, "\\'");
+        const safeTo = names[t.to].replace(/'/g, "\\'");
+        html += `<div class="settlement-row" onclick="openVietQRModal('${safeFrom}', '${safeTo}', ${amt})" style="cursor:pointer;" title="Bấm để mở mã VietQR chuyển khoản">
       <span class="sett-from">${escapeHtml(names[t.from])}</span>
       <span class="sett-arrow">→</span>
       <span class="sett-to">${escapeHtml(names[t.to])}</span>
       <span class="sett-amt">${display}đ</span>
+      <button class="sett-qr-btn" data-html2canvas-ignore="true" onclick="event.stopPropagation(); openVietQRModal('${safeFrom}', '${safeTo}', ${amt})" title="Tạo mã VietQR chuyển khoản">
+        <span class="qr-icon">📲</span> QR
+      </button>
     </div>`;
     });
     html += `</div>
@@ -1732,11 +1829,16 @@ function showSessionViewer(s) {
     if (txns.length) {
         html += `<div style="margin-top:10px;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;">💰 Thanh toán</div>`;
         txns.forEach(t => {
-            html += `<div style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:14px;">
-        <span style="color:var(--red)">${names[t.from]}</span>
-        <span>→</span>
-        <span style="color:var(--green)">${names[t.to]}</span>
-        <span style="margin-left:auto;font-weight:700;">${Number.isInteger(t.amount) ? t.amount : t.amount.toFixed(1).replace(/\.0$/, "")}đ</span>
+            const amt = roundScore(t.amount);
+            const display = Number.isInteger(amt) ? amt : amt.toFixed(1).replace(/\.0$/, '');
+            const safeFrom = names[t.from].replace(/'/g, "\\'");
+            const safeTo = names[t.to].replace(/'/g, "\\'");
+            html += `<div style="display:flex;gap:8px;align-items:center;padding:5px 0;font-size:14px;cursor:pointer;" onclick="openVietQRModal('${safeFrom}', '${safeTo}', ${amt})" title="Bấm để mở mã VietQR">
+        <span style="color:var(--red);font-weight:700;">${escapeHtml(names[t.from])}</span>
+        <span style="color:var(--muted);">→</span>
+        <span style="color:var(--green);font-weight:700;">${escapeHtml(names[t.to])}</span>
+        <span style="margin-left:auto;font-weight:700;">${display}đ</span>
+        <button class="sett-qr-btn" onclick="event.stopPropagation(); openVietQRModal('${safeFrom}', '${safeTo}', ${amt})" title="Tạo mã VietQR">📲 QR</button>
       </div>`;
         });
     }
@@ -1796,12 +1898,17 @@ function renderPresetChips() {
         wrap.innerHTML = '<span style="color:var(--muted);font-size:12px;">Chưa có tên nào được lưu</span>';
         return;
     }
-    wrap.innerHTML = playerPresets.map((n, i) =>
-        `<div class="preset-chip">
-      <span onclick="applyPreset('${n.replace(/'/g, "\\'")}', event)">${n}</span>
+    wrap.innerHTML = playerPresets.map((n, i) => {
+        const bank = getPlayerBank(n);
+        const bankBadge = bank && bank.account
+            ? `<button class="preset-bank-btn has-bank" onclick="openBankSettingsModal('${n.replace(/'/g, "\\'")}', event)" title="STK: ${bank.bank} - ${bank.account}">🏦 ${bank.bank}</button>`
+            : `<button class="preset-bank-btn" onclick="openBankSettingsModal('${n.replace(/'/g, "\\'")}', event)" title="Cài đặt STK ngân hàng">＋STK</button>`;
+        return `<div class="preset-chip">
+      <span onclick="applyPreset('${n.replace(/'/g, "\\'")}', event)">${escapeHtml(n)}</span>
+      ${bankBadge}
       <button onclick="removePreset(${i})" class="preset-del">✕</button>
-    </div>`
-    ).join('');
+    </div>`;
+    }).join('');
 }
 
 function applyPreset(name, e) {
@@ -2036,10 +2143,17 @@ function shareResult() {
 // GỬI KẾT QUẢ SANG DISCORD (Webhook)
 // ══════════════════════════════════════════════════════════════
 const LS_DISCORD_WEBHOOK = 'xamloc_discord_webhook';
+const DEFAULT_DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1560645908855652434/6b24NFVcdH703xYwf_Si3qZXF-F2wtr1iXQEJ8719EDMJYpXY8E_vrAMavviKammAjHD';
 const DISCORD_WEBHOOK_RE = /^https:\/\/(?:(?:canary|ptb)\.)?(?:discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+$/;
 
 function getDiscordWebhook() {
-    try { return localStorage.getItem(LS_DISCORD_WEBHOOK) || ''; } catch (e) { return ''; }
+    try {
+        const saved = localStorage.getItem(LS_DISCORD_WEBHOOK);
+        if (saved !== null) return saved;
+        return DEFAULT_DISCORD_WEBHOOK;
+    } catch (e) {
+        return DEFAULT_DISCORD_WEBHOOK;
+    }
 }
 
 function loadDiscordField() {
@@ -2054,7 +2168,9 @@ function saveDiscordWebhook() {
         showAlert({ icon: '⚠️', title: 'Link không hợp lệ', msg: 'Link webhook phải có dạng https://discord.com/api/webhooks/…' });
         return;
     }
-    try { url ? localStorage.setItem(LS_DISCORD_WEBHOOK, url) : localStorage.removeItem(LS_DISCORD_WEBHOOK); } catch (e) { }
+    try {
+        localStorage.setItem(LS_DISCORD_WEBHOOK, url);
+    } catch (e) { }
     showToast(url ? '✅ Đã lưu Discord webhook' : '🗑 Đã xóa Discord webhook', 2000);
 }
 
@@ -2152,21 +2268,330 @@ function exportSettlementImage() {
     });
 }
 
-function copyToClipboard(txt) {
-    navigator.clipboard.writeText(txt).then(() => {
-        showToast('📋 Đã copy kết quả!', 2000);
-    }).catch(() => {
+function copyToClipboard(txt, customMsg) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => {
+            showToast(customMsg || '📋 Đã copy kết quả!', 2000);
+        }).catch(() => {
+            fallbackCopy(txt, customMsg);
+        });
+    } else {
+        fallbackCopy(txt, customMsg);
+    }
+}
+
+function fallbackCopy(txt, customMsg) {
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(customMsg || '📋 Đã copy!', 2000);
+    } catch (_) {
         showModal({
-            icon: '📤', title: 'Chia sẻ kết quả',
+            icon: '📋', title: 'Nội dung sao chép',
             msg: txt,
             buttons: [{ label: 'Đóng', cls: 'modal-btn-primary' }]
         });
-    });
+    }
 }
 
 // ══════════════════════════════════════════════════════════════
-// KEYBOARD SHORTCUTS
+// VIETQR THANH TOÁN TỰ ĐỘNG
 // ══════════════════════════════════════════════════════════════
+const VIETNAMESE_BANKS = [
+    { code: 'MB', name: 'MBBank (Quân Đội)' },
+    { code: 'VCB', name: 'Vietcombank' },
+    { code: 'TCB', name: 'Techcombank' },
+    { code: 'ICB', name: 'VietinBank' },
+    { code: 'BIDV', name: 'BIDV' },
+    { code: 'ACB', name: 'ACB' },
+    { code: 'VPB', name: 'VPBank' },
+    { code: 'TPB', name: 'TPBank' },
+    { code: 'STB', name: 'Sacombank' },
+    { code: 'HDB', name: 'HDBank' },
+    { code: 'VIB', name: 'VIB' },
+    { code: 'SHB', name: 'SHB' },
+    { code: 'MSB', name: 'MSB' },
+    { code: 'OCB', name: 'OCB' },
+    { code: 'LPB', name: 'LPBank' },
+    { code: 'SEAB', name: 'SeABank' },
+    { code: 'ABB', name: 'ABBank' },
+    { code: 'VAB', name: 'VietABank' },
+    { code: 'NAB', name: 'Nam A Bank' },
+    { code: 'BAB', name: 'Bac A Bank' },
+    { code: 'BVB', name: 'BaoViet Bank' },
+    { code: 'KLB', name: 'Kienlongbank' },
+    { code: 'PVB', name: 'PVcomBank' },
+    { code: 'CAKE', name: 'Cake by VPBank' },
+    { code: 'TIMO', name: 'Timo' },
+    { code: 'VIETTELMONEY', name: 'Viettel Money' }
+];
+
+function removeVietnameseTones(str) {
+    if (!str) return '';
+    return String(str)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .replace(/[^a-zA-Z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getPlayerBank(name) {
+    if (!name) return null;
+    const key = name.trim();
+    return playerBanks[key] || null;
+}
+
+function setPlayerBank(name, bankData) {
+    if (!name) return;
+    const key = name.trim();
+    if (!bankData || !bankData.account) {
+        delete playerBanks[key];
+    } else {
+        playerBanks[key] = {
+            bank: bankData.bank || 'MB',
+            account: String(bankData.account).trim(),
+            accountName: (bankData.accountName || '').trim()
+        };
+    }
+    save();
+    renderPresetChips();
+}
+
+let currentVietQRState = {
+    senderName: '',
+    receiverName: '',
+    rawAmount: 0,
+    multiplier: 1,
+    customAmount: null,
+    editingBank: false
+};
+
+function openVietQRModal(senderName, receiverName, rawAmount) {
+    SFX.play('click');
+    const nAmt = Number(rawAmount) || 0;
+    currentVietQRState = {
+        senderName: senderName || 'Nguoi choi',
+        receiverName: receiverName || 'Nguoi nhan',
+        rawAmount: nAmt,
+        multiplier: (nAmt > 0 && nAmt < 1000) ? 1000 : 1,
+        customAmount: null,
+        editingBank: false
+    };
+
+    renderVietQRModalContent();
+
+    const ov = document.getElementById('vietqr-modal-overlay');
+    if (ov) {
+        ov.style.display = 'flex';
+        requestAnimationFrame(() => ov.classList.add('show'));
+    }
+}
+
+function closeVietQRModal() {
+    const ov = document.getElementById('vietqr-modal-overlay');
+    if (!ov) return;
+    ov.classList.remove('show');
+    setTimeout(() => { ov.style.display = 'none'; }, 200);
+}
+
+function vietQRClickOutside(e) {
+    if (e.target.id === 'vietqr-modal-overlay') {
+        closeVietQRModal();
+    }
+}
+
+function setVietQRMultiplier(mult) {
+    SFX.play('click');
+    currentVietQRState.multiplier = mult;
+    currentVietQRState.customAmount = null;
+    renderVietQRModalContent();
+}
+
+function openBankSettingsModal(playerName, e) {
+    if (e) e.stopPropagation();
+    SFX.play('click');
+    currentVietQRState = {
+        senderName: '',
+        receiverName: playerName || '',
+        rawAmount: 0,
+        multiplier: 1,
+        customAmount: null,
+        editingBank: true
+    };
+    renderVietQRModalContent();
+    const ov = document.getElementById('vietqr-modal-overlay');
+    if (ov) {
+        ov.style.display = 'flex';
+        requestAnimationFrame(() => ov.classList.add('show'));
+    }
+}
+
+function renderVietQRModalContent() {
+    const wrap = document.getElementById('vietqr-modal-content');
+    if (!wrap) return;
+
+    const { senderName, receiverName, rawAmount, multiplier, customAmount, editingBank } = currentVietQRState;
+    const bank = getPlayerBank(receiverName);
+
+    // If no bank setup yet OR user clicked to edit bank
+    if (!bank || !bank.account || editingBank) {
+        const bankOptions = VIETNAMESE_BANKS.map(b =>
+            `<option value="${b.code}" ${bank && bank.bank === b.code ? 'selected' : ''}>${b.name} (${b.code})</option>`
+        ).join('');
+
+        wrap.innerHTML = `
+        <div style="font-size:18px;font-weight:800;font-family:var(--font-display);font-style:italic;margin-bottom:6px;">
+            🏦 Cài đặt STK: <span style="color:var(--accent);">${escapeHtml(receiverName)}</span>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5;">
+            Cài đặt một lần — sau này mỗi khi thanh toán, hệ thống tự động tạo mã <b>VietQR</b> đúng số tiền để quét trả.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px;">
+            <div>
+                <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;">Ngân hàng</label>
+                <select id="vqr-bank-input" class="vqr-input">${bankOptions}</select>
+            </div>
+            <div>
+                <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;">Số tài khoản</label>
+                <input type="text" id="vqr-acc-input" class="vqr-input" placeholder="Ví dụ: 0987654321..." value="${bank ? escapeHtml(bank.account) : ''}">
+            </div>
+            <div>
+                <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;">Tên chủ tài khoản (không dấu)</label>
+                <input type="text" id="vqr-name-input" class="vqr-input" placeholder="Ví dụ: NGUYEN VAN A" value="${bank && bank.accountName ? escapeHtml(bank.accountName) : ''}">
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="modal-btn modal-btn-primary" onclick="savePlayerBankForm('${receiverName.replace(/'/g, "\\'")}')">
+                💾 Lưu & ${rawAmount > 0 ? 'Tạo mã QR' : 'Hoàn tất'}
+            </button>
+            ${bank && bank.account ? `<button class="modal-btn modal-btn-cancel" onclick="currentVietQRState.editingBank=false; renderVietQRModalContent();">Quay lại</button>` : `<button class="modal-btn modal-btn-cancel" onclick="closeVietQRModal()">Đóng</button>`}
+        </div>
+        `;
+        return;
+    }
+
+    // Has bank info -> Show QR Code
+    const effectiveAmount = customAmount !== null ? customAmount : Math.round(rawAmount * multiplier);
+    const bankObj = VIETNAMESE_BANKS.find(b => b.code === bank.bank);
+    const bankDisplay = bankObj ? bankObj.name : bank.bank;
+    const memo = `Tien Sam Loc ${removeVietnameseTones(senderName)}`;
+    const accName = removeVietnameseTones(bank.accountName || receiverName).toUpperCase();
+
+    const qrUrl = `https://img.vietqr.io/image/${bank.bank}-${bank.account}-compact2.png?amount=${effectiveAmount}&addInfo=${encodeURIComponent(memo)}&accountName=${encodeURIComponent(accName)}`;
+
+    wrap.innerHTML = `
+    <div style="font-size:18px;font-weight:800;font-family:var(--font-display);font-style:italic;margin-bottom:2px;">
+        📲 Mã VietQR Thanh Toán
+    </div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">
+        <span style="color:var(--red);font-weight:700;">${escapeHtml(senderName)}</span> trả cho <span style="color:var(--green);font-weight:700;">${escapeHtml(receiverName)}</span>
+    </div>
+
+    <!-- Quy đổi điểm / tiền -->
+    <div class="vqr-multipliers">
+        <span style="font-size:11.5px;color:var(--muted);font-weight:700;">Quy đổi:</span>
+        <button class="vqr-mul-btn ${multiplier === 1 ? 'active' : ''}" onclick="setVietQRMultiplier(1)">x1 (${Number(rawAmount).toLocaleString('vi-VN')}đ)</button>
+        <button class="vqr-mul-btn ${multiplier === 1000 ? 'active' : ''}" onclick="setVietQRMultiplier(1000)">x1.000 (${Number(rawAmount * 1000).toLocaleString('vi-VN')}đ)</button>
+        <button class="vqr-mul-btn ${multiplier === 5000 ? 'active' : ''}" onclick="setVietQRMultiplier(5000)">x5.000</button>
+        <button class="vqr-mul-btn ${multiplier === 10000 ? 'active' : ''}" onclick="setVietQRMultiplier(10000)">x10.000</button>
+    </div>
+
+    <!-- Khung QR code -->
+    <div class="vietqr-box">
+        <img src="${qrUrl}" alt="VietQR" class="vietqr-img" id="vietqr-code-img">
+        <div class="vietqr-scan-hint">📷 Mở app ngân hàng hoặc MoMo / ZaloPay quét mã để chuyển</div>
+    </div>
+
+    <!-- Thông tin chi tiết kèm nút copy -->
+    <div class="vietqr-info-card">
+        <div class="vietqr-info-row">
+            <span class="vietqr-info-label">🏦 Ngân hàng:</span>
+            <span class="vietqr-info-val">${bankDisplay}</span>
+        </div>
+        <div class="vietqr-info-row">
+            <span class="vietqr-info-label">💳 Số tài khoản:</span>
+            <span class="vietqr-info-val">
+                <span>${bank.account}</span>
+                <button class="vietqr-copy-btn" onclick="copyToClipboard('${bank.account}', '📋 Đã sao chép STK!')">Sao chép</button>
+            </span>
+        </div>
+        <div class="vietqr-info-row">
+            <span class="vietqr-info-label">👤 Chủ tài khoản:</span>
+            <span class="vietqr-info-val">${escapeHtml(accName)}</span>
+        </div>
+        <div class="vietqr-info-row">
+            <span class="vietqr-info-label">💵 Số tiền:</span>
+            <span class="vietqr-info-val">
+                <span style="color:var(--green);font-size:15px;font-weight:800;">${Number(effectiveAmount).toLocaleString('vi-VN')} đ</span>
+                <button class="vietqr-copy-btn" onclick="copyToClipboard('${effectiveAmount}', '📋 Đã sao chép số tiền!')">Sao chép</button>
+            </span>
+        </div>
+        <div class="vietqr-info-row">
+            <span class="vietqr-info-label">📝 Nội dung CK:</span>
+            <span class="vietqr-info-val">
+                <span>${escapeHtml(memo)}</span>
+                <button class="vietqr-copy-btn" onclick="copyToClipboard('${memo}', '📋 Đã sao chép nội dung CK!')">Sao chép</button>
+            </span>
+        </div>
+    </div>
+
+    <!-- Nút hành động -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="sec-btn" onclick="currentVietQRState.editingBank=true; renderVietQRModalContent();" style="font-size:12px;">✏️ Sửa STK</button>
+        <button class="sec-btn success" onclick="downloadVietQRImage()" style="font-size:12px;">📥 Tải ảnh QR</button>
+        <button class="sec-btn" onclick="closeVietQRModal()" style="font-size:12px;margin-left:auto;">Đóng</button>
+    </div>
+    `;
+}
+
+function savePlayerBankForm(receiverName) {
+    const bankSel = document.getElementById('vqr-bank-input');
+    const accInp = document.getElementById('vqr-acc-input');
+    const nameInp = document.getElementById('vqr-name-input');
+
+    const bankCode = bankSel ? bankSel.value : 'MB';
+    const accNum = accInp ? accInp.value.trim() : '';
+    const accName = nameInp ? nameInp.value.trim().toUpperCase() : '';
+
+    if (!accNum) {
+        showToast('⚠️ Vui lòng nhập số tài khoản!', 2000);
+        return;
+    }
+
+    setPlayerBank(receiverName, {
+        bank: bankCode,
+        account: accNum,
+        accountName: accName
+    });
+
+    SFX.play('save');
+    showToast(`✅ Đã lưu STK cho ${receiverName}!`, 1800);
+    currentVietQRState.editingBank = false;
+    renderVietQRModalContent();
+}
+
+function downloadVietQRImage() {
+    const img = document.getElementById('vietqr-code-img');
+    if (!img || !img.src) return;
+    const a = document.createElement('a');
+    a.href = img.src;
+    a.download = `vietqr-${removeVietnameseTones(currentVietQRState.receiverName || 'samloc')}.png`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast('📥 Đang tải ảnh mã QR...', 1500);
+}
+
 // ══════════════════════════════════════════════════════════════
 // KEYBOARD SHORTCUTS
 // ══════════════════════════════════════════════════════════════
@@ -2204,6 +2629,10 @@ function initKeyboardShortcuts() {
         if (e.key === 'Escape') {
             const ov = document.getElementById('modal-overlay');
             if (ov && ov.style.display === 'flex') closeModal();
+            const qrov = document.getElementById('vietqr-modal-overlay');
+            if (qrov && qrov.style.display === 'flex') closeVietQRModal();
+            const liveov = document.getElementById('live-host-modal-overlay');
+            if (liveov && liveov.style.display === 'flex') closeLiveModal();
             return;
         }
 
@@ -2254,11 +2683,10 @@ function initKeyboardShortcuts() {
         }
     } catch (e) { }
 
-    // Apply saved theme
+    // Apply saved theme (mặc định: light)
     const savedTheme = localStorage.getItem(LS_THEME);
     if (savedTheme) applyTheme(savedTheme);
-    else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) applyTheme('dark');
-    else applyTheme('dark');
+    else applyTheme('light');
 
     load();
     updateRuleSummary();
@@ -2280,6 +2708,7 @@ function initKeyboardShortcuts() {
     renderPresetChips();
     renderHonorBoard();
     renderHighlights();
+    loadDiscordField();
 
     // Parallax nhẹ cho hình nền splash (chuột trên desktop, con quay trên mobile)
     initSplashParallax();

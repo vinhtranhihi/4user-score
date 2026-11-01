@@ -1,12 +1,19 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sâm Lốc — Tính Điểm</title>
+    <script>
+        (function () {
+            var t = localStorage.getItem('xamloc_theme');
+            if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+            else document.documentElement.setAttribute('data-theme', 'light');
+        })();
+    </script>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#050716">
+    <meta name="theme-color" content="#e9efff">
     <link rel="icon" type="image/svg+xml" href="logo.svg">
     <link rel="alternate icon" href="icon-192.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -20,6 +27,8 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 
 <body>
@@ -86,6 +95,9 @@
                 </div>
             </div>
             <div class="header-actions">
+                <button class="sec-btn live-header-btn" id="live-btn-toggle" onclick="openLiveManagerModal()" title="Phát hoặc xem trực tiếp">
+                    <span class="live-icon">📡</span> <span id="live-btn-label">Trực tiếp</span>
+                </button>
                 <button class="sec-btn" onclick="exportXLSX()">📥 Xuất Excel</button>
                 <label class="sec-btn" style="cursor:pointer;">📤 Nhập file
                     <input type="file" accept=".xlsx,.xls" onchange="importXLSX(event)" style="display:none;">
@@ -248,15 +260,15 @@
 
                 <div class="card">
                     <div class="card-title">Lịch sử các ván</div>
-                    <div class="history-wrap">
-                        <table id="hist-table"></table>
-                    </div>
-                    <div class="bottom-bar" style="margin-top:12px;">
+                    <div class="bottom-bar" style="margin-bottom:12px;">
                         <button class="sec-btn danger" onclick="resetGame()">🔄 Ván mới</button>
                         <button class="undo-btn" id="undo-btn" onclick="undoVan()" style="display:none;">↩ Hoàn
                             tác</button>
                         <button class="sec-btn" onclick="exportXLSX()">📥 Xuất Excel</button>
-
+                    </div>
+                    <div class="history-filter-bar" id="history-filter-bar"></div>
+                    <div class="history-wrap">
+                        <table id="hist-table"></table>
                     </div>
                 </div>
             </div>
@@ -409,6 +421,7 @@
                 <div class="card-title">💬 Gửi kết quả sang Discord</div>
                 <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Dán link Webhook của kênh Discord. Sau đó bấm "📤 Chia sẻ kết quả" là kết quả (kèm ảnh) tự gửi vào kênh. Để trống = chia sẻ như bình thường.</p>
                 <input type="url" id="discord-webhook-input" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false"
+                    value="https://discord.com/api/webhooks/1560645908855652434/6b24NFVcdH703xYwf_Si3qZXF-F2wtr1iXQEJ8719EDMJYpXY8E_vrAMavviKammAjHD"
                     style="width:100%;padding:10px 12px;margin-bottom:10px;border-radius:10px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;">
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="sec-btn success" onclick="saveDiscordWebhook()">💾 Lưu</button>
@@ -508,6 +521,26 @@
     </div>
 
     <!-- ═══════════════════════════════
+     VIETQR MODAL
+═══════════════════════════════ -->
+    <div class="modal-overlay" id="vietqr-modal-overlay" onclick="vietQRClickOutside(event)">
+        <div class="modal-box vietqr-modal-box" id="vietqr-modal-box">
+            <button class="vietqr-close-btn" onclick="closeVietQRModal()" title="Đóng">✕</button>
+            <div id="vietqr-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════
+     LIVE HOST MODAL
+═══════════════════════════════ -->
+    <div class="modal-overlay" id="live-host-modal-overlay" onclick="liveHostClickOutside(event)">
+        <div class="modal-box live-modal-box" id="live-host-modal-box">
+            <button class="vietqr-close-btn" onclick="closeLiveModal()" title="Đóng">✕</button>
+            <div id="live-host-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════
      FOOTER
 ═══════════════════════════════ -->
     <div class="troll-footer">
@@ -522,6 +555,7 @@
     <script src="app.js"></script>
     <script src="bridge.js"></script>
     <script src="chart.js"></script>
+    <script src="live.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

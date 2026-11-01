@@ -1065,3 +1065,283 @@ td { padding: 11px 10px; font-size: 14px; }
 }
 .nav-btn { display: flex; align-items: center; justify-content: center; gap: 6px; }
 @media (max-width: 560px) { .nav-btn { gap: 2px; } }
+
+/* ── 19. VIETQR STYLES ────────────────────────── */
+.sett-qr-btn {
+    margin-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #fff;
+    background: var(--grad);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(47, 107, 255, .32);
+    transition: transform .15s, box-shadow .15s;
+    flex-shrink: 0;
+}
+.sett-qr-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(47, 107, 255, .48);
+}
+.preset-bank-btn {
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 999px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    margin: 0 2px;
+    transition: all .15s;
+}
+.preset-bank-btn.has-bank {
+    background: var(--green-light);
+    border-color: var(--green);
+    color: var(--green);
+}
+.preset-bank-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.vietqr-modal-box {
+    max-width: 440px;
+    padding: 24px 20px 20px;
+    position: relative;
+    text-align: left;
+}
+.vietqr-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all .15s;
+}
+.vietqr-close-btn:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.vqr-multipliers {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.vqr-mul-btn {
+    padding: 4px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+}
+.vqr-mul-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(47, 107, 255, .35);
+}
+.vietqr-box {
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .14);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 0 14px;
+}
+.vietqr-img {
+    width: 100%;
+    max-width: 260px;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+}
+.vietqr-scan-hint {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #555;
+    margin-top: 8px;
+    text-align: center;
+}
+.vietqr-info-card {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    margin-bottom: 14px;
+}
+.vietqr-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.vietqr-info-label {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+.vietqr-info-val {
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.vietqr-copy-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-light);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .12s;
+}
+.vietqr-copy-btn:hover {
+    background: var(--accent);
+    color: #fff;
+}
+.vqr-input {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1.5px solid var(--border2);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color .15s;
+    box-sizing: border-box;
+}
+.vqr-input:focus {
+    border-color: var(--accent);
+}
+
+/* ── 20. HISTORY FILTER BAR ───────────────────── */
+.history-filter-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.hfilter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.hfilter-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+}
+.hfilter-btn.active {
+    color: #fff;
+    background: var(--grad);
+    border-color: transparent;
+    box-shadow: 0 2px 10px rgba(47, 107, 255, .35);
+}
+.hfilter-badge {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .18);
+    vertical-align: middle;
+}
+.hfilter-btn.active .hfilter-badge {
+    background: rgba(255, 255, 255, .25);
+    color: #fff;
+}
+
+/* ── 21. LIVE SYNC & SPECTATOR STYLES ───────────────── */
+.live-header-btn {
+    border-color: var(--border2);
+    font-weight: 700;
+}
+.live-header-btn.live-active {
+    color: #fff;
+    background: var(--green);
+    border-color: transparent;
+    box-shadow: 0 0 16px rgba(51, 224, 162, .45);
+}
+.live-dot-pulse {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #33e0a2;
+    box-shadow: 0 0 0 4px rgba(51, 224, 162, .35);
+    animation: auto-pulse 1.6s ease-in-out infinite;
+    vertical-align: middle;
+}
+.spectator-banner {
+    background: linear-gradient(135deg, rgba(13, 159, 105, .95), rgba(6, 95, 70, .95));
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 16px rgba(13, 159, 105, .35);
+    font-size: 13.5px;
+}
+.spectator-exit-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, .28);
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s;
+}
+.spectator-exit-btn:hover {
+    background: rgba(0, 0, 0, .45);
+}
+.live-modal-box {
+    max-width: 440px;
+    padding: 24px 20px 20px;
+    position: relative;
+    text-align: left;
+}
+
+
+
